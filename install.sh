@@ -6,14 +6,14 @@ DEST="${XDG_DATA_HOME:-$HOME/.local/share}"
 APP="$DEST/diskglance"
 BIN="$HOME/.local/bin"
 
-mkdir -p "$APP" "$BIN" "$DEST/applications" "$DEST/icons/hicolor/scalable/apps"
+mkdir -p "$APP" "$BIN" "$DEST/applications" "$DEST/icons"
 cp -r "$SRC/diskglance" "$SRC/data" "$SRC/diskglance.py" "$APP/"
 cat > "$BIN/diskglance" <<LAUNCH
 #!/bin/sh
 exec /usr/bin/python3 "$APP/diskglance.py" "\$@"
 LAUNCH
 chmod +x "$BIN/diskglance"
-cp "$SRC/data/icons/hicolor/scalable/apps/"*.svg "$DEST/icons/hicolor/scalable/apps/"
+cp -r "$SRC/data/icons/hicolor" "$DEST/icons/"
 sed "s|@EXEC@|$BIN/diskglance|" "$SRC/data/io.github.rickbme.DiskGlance.desktop" \
   > "$DEST/applications/io.github.rickbme.DiskGlance.desktop"
 command -v update-desktop-database >/dev/null && update-desktop-database "$DEST/applications" || true

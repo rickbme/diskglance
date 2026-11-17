@@ -1,0 +1,30 @@
+app-id: io.github.rickbme.DiskGlance
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+command: diskglance
+
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # read-only view of the host so drives can be scanned and sized
+  - --filesystem=host:ro
+  # SMART health via UDisks2 (read-only properties)
+  - --system-talk-name=org.freedesktop.UDisks2
+
+modules:
+  - name: diskglance
+    buildsystem: simple
+    build-commands:
+      - install -d /app/share/diskglance /app/bin
+      - cp -r diskglance data diskglance.py /app/share/diskglance/
+      - install -Dm755 flatpak/diskglance.sh /app/bin/diskglance
+      - install -Dm644 data/io.github.rickbme.DiskGlance.desktop /app/share/applications/io.github.rickbme.DiskGlance.desktop
+      - sed -i 's|@EXEC@|diskglance|' /app/share/applications/io.github.rickbme.DiskGlance.desktop
+      - install -Dm644 data/io.github.rickbme.DiskGlance.metainfo.xml /app/share/metainfo/io.github.rickbme.DiskGlance.metainfo.xml
+      - cp -r data/icons/hicolor /app/share/icons/
+    sources:
+      - type: dir
+        path: .

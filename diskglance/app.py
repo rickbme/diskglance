@@ -5,13 +5,14 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
-from . import __version__, config, drives  # noqa: E402
+from . import __version__, autostart, config, drives  # noqa: E402
 from .scanner import Scan  # noqa: E402
 from .widgets import LEVELS, Ring, Treemap, level  # noqa: E402
 
 APP_ID = "io.github.rickbme.DiskGlance"
+DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 REFRESH_SECONDS = 5
 
 CSS = """
@@ -249,11 +250,25 @@ class Window(Adw.ApplicationWindow):
         self.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
         self.empty = Adw.StatusPage(icon_name="drive-harddisk-symbolic", title="No drives found",
                                     visible=False)
-        for w in (self.banner, self.list, self.empty):
+        foot = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER, margin_top=6)
+        logo = Gtk.Picture.new_for_filename(os.path.join(DATA, "brand", "dfs-logo.png"))
+        logo.set_size_request(22, 22)
+        logo.set_can_shrink(True)
+        foot.append(logo)
+        foot.append(Gtk.Label(label="Made by Rickbme · Dad's Fixit Shop",
+                              css_classes=["dg-dim", "dg-small"]))
+        for w in (self.banner, self.list, self.empty, foot):
             col.append(w)
         view.set_content(Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=col), vexpand=True))
         self.nav.add(Adw.NavigationPage(title="DiskGlance", child=view))
-        self.set_content(self.nav)
+        # faint circuit-board texture behind everything (dark theme only)
+        self.bg = Gtk.Picture.new_for_filename(os.path.join(DATA, "brand", "circuit-bg.jpg"))
+        self.bg.set_content_fit(Gtk.ContentFit.COVER)
+        self.bg.set_can_target(False)
+        self.bg.set_opacity(0.30)
+        ov = Gtk.Overlay(child=self.bg)
+        ov.add_overlay(self.nav)
+        self.set_content(ov)
 
         key = Gtk.ShortcutController()
         key.add_shortcut(Gtk.Shortcut.new(Gtk.ShortcutTrigger.parse_string("F5"),
@@ -261,7 +276,14 @@ class Window(Adw.ApplicationWindow):
         self.add_controller(key)
 
         self.refresh()
-        GLib.timeout_add_seconds(REFRESH_SECONDS, lambda: self.refresh() or True)
+        self._tick = 0
+        GLib.timeout_add_seconds(REFRESH_SECONDS, self._timer)
+
+    def _timer(self):
+        self._tick += 1
+        if self.is_visible() or self._tick % 12 == 0:   # hidden: check once a minute
+            self.refresh()
+        return True
 
     # -- header menu -------------------------------------------------
     def _menu(self):
@@ -276,18 +298,31 @@ class Window(Adw.ApplicationWindow):
             cb.connect("toggled", lambda b, k=key: b.get_active() and self._set("theme", k))
             box.append(cb)
         box.append(Gtk.Separator())
+        switches = {}
         for key, label in (("notify", "Notify when a drive is nearly full"),
-                           ("show_system", "Show system / snap mounts")):
+                           ("show_system", "Show system / snap mounts"),
+                           ("background", "Keep running in background"),
+                           ("autostart", "   …and start at login")):
             row = Gtk.Box(spacing=18)
             row.append(Gtk.Label(label=label, xalign=0, hexpand=True))
             sw = Gtk.Switch(active=self.cfg[key], valign=Gtk.Align.CENTER)
             sw.connect("notify::active", lambda s, _p, k=key: self._set(k, s.get_active()))
+            switches[key] = sw
             row.append(sw)
             box.append(row)
+        switches["background"].bind_property("active", switches["autostart"], "sensitive",
+                                             GObject.BindingFlags.SYNC_CREATE)
+        hint = Gtk.Label(label="Background mode is off by default. When on, closing the window keeps "
+                               "DiskGlance quietly watching your drives.", wrap=True, xalign=0,
+                         max_width_chars=38, css_classes=["dg-dim", "dg-small"])
+        box.append(hint)
         box.append(Gtk.Separator())
         about = Gtk.Button(label="About DiskGlance", css_classes=["flat"])
         about.connect("clicked", lambda *_: (pop.popdown(), self._about()))
+        quit_ = Gtk.Button(label="Quit DiskGlance", css_classes=["flat"])
+        quit_.connect("clicked", lambda *_: self.app.quit())
         box.append(about)
+        box.append(quit_)
         pop.set_child(box)
         return Gtk.MenuButton(icon_name="open-menu-symbolic", popover=pop, tooltip_text="Menu")
 
@@ -296,12 +331,18 @@ class Window(Adw.ApplicationWindow):
         config.save(self.cfg)
         if key == "theme":
             self.app.apply_theme()
+        elif key in ("background", "autostart"):
+            if key == "background" and not value:
+                self.cfg["autostart"] = False
+                config.save(self.cfg)
+            self.app.apply_background()
         else:
             self.refresh()
 
     def _about(self):
         a = Adw.AboutDialog(application_name="DiskGlance", application_icon=APP_ID,
-                            version=__version__, developer_name="DiskGlance contributors",
+                            version=__version__, developer_name="Rickbme",
+                            copyright="© 2026 Rickbme · Dad's Fixit Shop",
                             license_type=Gtk.License.MIT_X11,
                             website="https://github.com/rickbme/diskglance",
                             comments="See your disks at a glance.")
@@ -354,10 +395,13 @@ class Window(Adw.ApplicationWindow):
         self.nav.push(DetailPage(self, path, title))
 
     def _on_close(self, *_):
-        page = self.nav.get_visible_page()
         for p in self.nav.get_navigation_stack():
             if hasattr(p, "cancel"):
                 p.cancel()
+        if self.cfg["background"]:           # optional: keep watching drives, just hide
+            self.nav.pop_to_page(self.nav.get_navigation_stack().get_item(0))
+            self.set_visible(False)
+            return True
         return False
 
 
@@ -367,6 +411,17 @@ class App(Adw.Application):
         self.opts = opts
         self.cfg = config.load()
         self.alerted: set[str] = set()
+        self._held = False
+
+    def apply_background(self):
+        on = self.cfg["background"]
+        if on and not self._held:
+            self.hold()
+            self._held = True
+        elif not on and self._held:
+            self.release()
+            self._held = False
+        autostart.apply(on, self.cfg["autostart"])
 
     def apply_theme(self):
         sm = Adw.StyleManager.get_default()
@@ -375,7 +430,9 @@ class App(Adw.Application):
 
     def _sync_dark(self, *_):
         for w in self.get_windows():
-            (w.add_css_class if Adw.StyleManager.get_default().get_dark() else w.remove_css_class)("dg-dark")
+            dark = Adw.StyleManager.get_default().get_dark()
+            (w.add_css_class if dark else w.remove_css_class)("dg-dark")
+            w.bg.set_visible(dark)
 
     def check_alerts(self, found):
         if not self.cfg["notify"]:
@@ -398,8 +455,14 @@ class App(Adw.Application):
     def do_startup(self):
         Adw.Application.do_startup(self)
         act = Gio.SimpleAction.new("focus", None)
-        act.connect("activate", lambda *_: self.props.active_window and self.props.active_window.present())
+        act.connect("activate", lambda *_: self._show())
         self.add_action(act)
+        q = Gio.SimpleAction.new("quit", None)
+        q.connect("activate", lambda *_: self.quit())
+        self.add_action(q)
+        self.set_accels_for_action("app.quit", ["<Primary>q"])
+        if self.cfg["background"]:
+            self.apply_background()
         prov = Gtk.CssProvider()
         prov.load_from_string(CSS)
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), prov,
@@ -410,8 +473,20 @@ class App(Adw.Application):
         self.apply_theme()
         Adw.StyleManager.get_default().connect("notify::dark", self._sync_dark)
 
+    def _show(self):
+        w = self.props.active_window
+        if w:
+            w.set_visible(True)
+            w.present()
+
     def do_activate(self):
         win = self.props.active_window or Window(self)
+        if self.opts.get("background") and self.cfg["background"] and not win.is_visible() \
+                and not self.opts.get("_shown"):
+            self.opts["_shown"] = True      # started at login: stay hidden, just watch
+            self._sync_dark()
+            return
+        win.set_visible(True)
         win.present()
         self._sync_dark()
         o = self.opts
@@ -435,7 +510,10 @@ def main():
     argv, opts, i = sys.argv[1:], {}, 0
     while i < len(argv):
         a = argv[i]
-        if a in ("--shot", "--open", "--delay") and i + 1 < len(argv):
+        if a == "--background":
+            opts["background"] = True
+            i += 1
+        elif a in ("--shot", "--open", "--delay") and i + 1 < len(argv):
             opts[a[2:]] = argv[i + 1]
             i += 2
         elif a in ("-h", "--help"):

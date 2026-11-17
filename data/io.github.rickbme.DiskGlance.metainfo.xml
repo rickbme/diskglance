@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.rickbme.DiskGlance</id>
+  <name>DiskGlance</name>
+  <summary>See your disks and free space at a glance</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="io.github.rickbme"><name>Rickbme</name></developer>
+  <description>
+    <p>DiskGlance is a fast, good-looking disk-space viewer. See every drive's used and free space at a glance, then click through to a live treemap to find out what is taking up the room.</p>
+    <ul>
+      <li>Overview of all mounted drives with usage rings and bars</li>
+      <li>Live folder treemap and ranked list, click to drill down</li>
+      <li>Drive temperature and SMART health</li>
+      <li>Optional low-space notifications and optional background mode (both easy to turn off)</li>
+      <li>Dark, light or follow-system themes</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.rickbme.DiskGlance.desktop</launchable>
+  <url type="homepage">https://github.com/rickbme/diskglance</url>
+  <url type="bugtracker">https://github.com/rickbme/diskglance/issues</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/rickbme/diskglance/main/docs/main.png</image>
+      <caption>Overview of all drives</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/rickbme/diskglance/main/docs/folder.png</image>
+      <caption>Folder treemap drill-down</caption>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <categories><category>System</category><category>Utility</category></categories>
+  <requires><display_length compare="ge">360</display_length></requires>
+  <supports><control>pointer</control><control>keyboard</control><control>touch</control></supports>
+  <releases>
+    <release version="0.2.0" date="2026-11-16"><description><p>Drill-down treemap, drive health, optional background mode, new branding.</p></description></release>
+  </releases>
+</component>

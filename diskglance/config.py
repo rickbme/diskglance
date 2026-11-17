@@ -3,7 +3,7 @@ import os
 
 PATH = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")),
                     "diskglance", "config.json")
-DEFAULTS = {"theme": "dark", "notify": True, "show_system": False, "warn": 80, "crit": 90}
+DEFAULTS = {"theme": "dark", "notify": True, "show_system": False, "background": False, "autostart": False, "warn": 80, "crit": 90}
 
 
 def load() -> dict:
