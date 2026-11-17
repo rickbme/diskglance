@@ -1,4 +1,5 @@
 """Threaded folder-size scanner (like `du`, one filesystem only, no GUI imports)."""
+import contextlib
 import os
 import queue
 import stat
@@ -47,6 +48,11 @@ def dir_size(path: str, dev: int, cancel: threading.Event, entry: Entry | None =
     return total
 
 
+# In a Flatpak sandbox the host's "/" cannot be listed; show the parts that are visible.
+FLATPAK_ROOT_VIEW = [("home", "/home"), ("usr", "/run/host/usr"), ("etc", "/run/host/etc"),
+                     ("opt", "/opt"), ("srv", "/srv")]
+
+
 class Scan:
     """Lists `path`, sizes each sub-folder in parallel. Poll `.entries`/`.finished`."""
 
@@ -68,7 +74,17 @@ class Scan:
         try:
             dev = os.stat(self.path).st_dev
             dirs = []
-            with os.scandir(self.path) as it:
+            if self.path == "/" and os.path.exists("/.flatpak-info"):
+                for name, real in FLATPAK_ROOT_VIEW:
+                    if os.path.isdir(real):
+                        ent = Entry(name, real, True, 0, done=False)
+                        ent.own_dev = os.stat(real).st_dev
+                        dirs.append(ent)
+                        self.entries.append(ent)
+                it = iter(())
+            else:
+                it = os.scandir(self.path)
+            with it if hasattr(it, "__enter__") else contextlib.nullcontext():
                 for e in it:
                     try:
                         st = e.stat(follow_symlinks=False)
@@ -97,7 +113,7 @@ class Scan:
                     ent = q.get_nowait()
                 except queue.Empty:
                     return
-                ent.size = dir_size(ent.path, dev, self.cancel, ent)
+                ent.size = dir_size(ent.path, getattr(ent, "own_dev", dev), self.cancel, ent)
                 ent.done = True
 
         ts = [threading.Thread(target=worker, daemon=True) for _ in range(self.workers)]

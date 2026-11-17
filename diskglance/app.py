@@ -251,9 +251,9 @@ class Window(Adw.ApplicationWindow):
         self.empty = Adw.StatusPage(icon_name="drive-harddisk-symbolic", title="No drives found",
                                     visible=False)
         foot = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER, margin_top=6)
-        logo = Gtk.Picture.new_for_filename(os.path.join(DATA, "brand", "dfs-logo.png"))
-        logo.set_size_request(22, 22)
-        logo.set_can_shrink(True)
+        logo = Gtk.Image.new_from_paintable(
+            Gdk.Texture.new_from_filename(os.path.join(DATA, "brand", "dfs-logo.png")))
+        logo.set_pixel_size(22)
         foot.append(logo)
         foot.append(Gtk.Label(label="Made by Rickbme · Dad's Fixit Shop",
                               css_classes=["dg-dim", "dg-small"]))

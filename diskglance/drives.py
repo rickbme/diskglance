@@ -6,6 +6,10 @@ from dataclasses import dataclass
 
 from . import hw
 
+IN_FLATPAK = os.path.exists("/.flatpak-info")
+# Inside a Flatpak sandbox the host root drive only appears as bind mounts of these:
+SANDBOX_ROOT_MARKERS = ("/usr", "/app")
+
 # Pseudo / virtual filesystems that are never "drives".
 PSEUDO_FS = {
     "proc", "sysfs", "devtmpfs", "devpts", "tmpfs", "cgroup", "cgroup2",
@@ -32,6 +36,7 @@ class Drive:
     temp: float | None = None    # °C
     health: str | None = None    # ok | warn | fail
     hours: int | None = None     # power-on hours
+    host_root: bool = False      # Flatpak only: the host's / (partly visible)
 
     @property
     def percent(self) -> float:
@@ -69,30 +74,36 @@ def _truthy(v) -> bool:
 
 def scan(include_system: bool = False) -> list[Drive]:
     blk = _lsblk()
-    drives, seen = [], set()
+    drives = []
     try:
         lines = open("/proc/self/mounts").read().splitlines()
     except OSError:
         return []
+    # group every mount by device first (bind mounts / sandbox mounts share a device)
+    groups: dict[str, list[tuple[str, str]]] = {}
     for line in lines:
         parts = line.split()
-        if len(parts) < 3:
+        if len(parts) < 3 or parts[2] in PSEUDO_FS:
             continue
-        dev, mnt, fs = parts[0], _unescape(parts[1]), parts[2]
-        if fs in PSEUDO_FS:
-            continue
-        is_snap = mnt.startswith("/snap/") or fs == "squashfs"
+        groups.setdefault(parts[0], []).append((_unescape(parts[1]), parts[2]))
+
+    for dev, mounts in groups.items():
+        fs = mounts[0][1]
         is_net = fs in ("nfs", "nfs4", "cifs", "smb3", "sshfs", "fuse.sshfs")
         if not (dev.startswith("/dev/") or is_net):
             continue
+        host_root = IN_FLATPAK and any(m in SANDBOX_ROOT_MARKERS for m, _ in mounts)
+        if host_root:
+            mnt = next(m for m, _ in mounts if m in SANDBOX_ROOT_MARKERS)   # statvfs works here
+            shown = "/"
+        else:
+            mnt = shown = mounts[0][0]
+        is_snap = mnt.startswith("/snap/") or fs == "squashfs"
         if is_snap and not include_system:
             continue
-        if not include_system and mnt.startswith(("/boot/efi", "/var/snap", "/run/")) \
+        if not include_system and not host_root and mnt.startswith(("/boot/efi", "/var/snap", "/run/")) \
                 and not mnt.startswith(("/run/media", "/run/user")):
             continue
-        if dev in seen:  # bind mounts / btrfs subvolumes
-            continue
-        seen.add(dev)
         try:
             st = os.statvfs(mnt)
         except OSError:
@@ -105,18 +116,18 @@ def scan(include_system: bool = False) -> list[Drive]:
         b = blk.get(dev, {})
         if is_net:
             kind = "network"
-        elif _truthy(b.get("rm")) or mnt.startswith(("/media", "/run/media")):
+        elif _truthy(b.get("rm")) or shown.startswith(("/media", "/run/media")):
             kind = "removable"
         elif b.get("rota") is not None:
             kind = "hdd" if _truthy(b.get("rota")) else "ssd"
         else:
             kind = "other"
-        label = b.get("label") or ("Root" if mnt == "/" else os.path.basename(mnt) or mnt)
+        label = b.get("label") or ("Root" if shown == "/" else os.path.basename(shown) or shown)
         disk = (b.get("pkname") or os.path.basename(dev)) if dev.startswith("/dev/") else None
         info = hw.disk_info(disk) if kind != "network" else {}
-        drives.append(Drive(dev, mnt, fs, label, total, used, free, kind, is_snap, disk,
+        drives.append(Drive(dev, shown, fs, label, total, used, free, kind, is_snap, disk,
                             info.get("model"), info.get("temp"), info.get("health"),
-                            info.get("hours")))
+                            info.get("hours"), host_root))
     drives.sort(key=lambda d: (d.mountpoint != "/", d.mountpoint))
     return drives
 
