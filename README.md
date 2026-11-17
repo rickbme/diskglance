@@ -22,7 +22,12 @@ WinDirStat / Filelight / Baobab: instant overview first, one click to find what'
 
 ## Install
 ### Flatpak (any distro)
-Build and install locally (Flathub listing planned):
+Download `DiskGlance-0.2.0.flatpak` from the [latest release](https://github.com/rickbme/diskglance/releases/latest), then:
+
+    flatpak install --user DiskGlance-0.2.0.flatpak
+    flatpak run io.github.rickbme.DiskGlance
+
+Or build it yourself:
 
     flatpak install --user flathub org.flatpak.Builder org.gnome.Platform//51 org.gnome.Sdk//51
     flatpak run org.flatpak.Builder --user --install --force-clean build-dir io.github.rickbme.DiskGlance.yml
@@ -42,6 +47,9 @@ Or just run in place: `./diskglance.py`. Remove with `./uninstall.sh`.
 
 ## Roadmap
 File-type breakdown, delete / open-in-Files actions, Flathub listing.
+
+## AI disclosure
+This project was written with AI assistance (Claude).
 
 ## Credits
 Made by [Rickbme](https://github.com/rickbme) · Dad's Fixit Shop (DFS). Icon and background are derived from the DFS logo artwork.
