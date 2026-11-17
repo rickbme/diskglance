@@ -32,7 +32,7 @@
   <content_rating type="oars-1.1"/>
   <categories><category>System</category><category>Utility</category></categories>
   <requires><display_length compare="ge">360</display_length></requires>
-  <supports><control>pointer</control><control>keyboard</control><control>touch</control></supports>
+  <supports><control>pointing</control><control>keyboard</control><control>touch</control></supports>
   <releases>
     <release version="0.2.0" date="2026-11-16"><description><p>Drill-down treemap, drive health, optional background mode, new branding.</p></description></release>
   </releases>
