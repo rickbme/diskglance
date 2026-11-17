@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=DiskGlance
+GenericName=Disk Usage
+Comment=See your disks and free space at a glance
+Exec=@EXEC@ %U
+Icon=io.github.rickbme.DiskGlance
+Terminal=false
+Categories=GNOME;GTK;System;Utility;Filesystem;
+Keywords=disk;storage;space;usage;drive;free;treemap;
+StartupNotify=true

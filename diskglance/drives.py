@@ -4,6 +4,8 @@ import os
 import subprocess
 from dataclasses import dataclass
 
+from . import hw
+
 # Pseudo / virtual filesystems that are never "drives".
 PSEUDO_FS = {
     "proc", "sysfs", "devtmpfs", "devpts", "tmpfs", "cgroup", "cgroup2",
@@ -25,6 +27,11 @@ class Drive:
     free: int          # available to the user
     kind: str          # "ssd" | "hdd" | "removable" | "network" | "other"
     is_snap: bool = False
+    disk: str | None = None      # parent physical disk, e.g. nvme0n1
+    model: str | None = None
+    temp: float | None = None    # °C
+    health: str | None = None    # ok | warn | fail
+    hours: int | None = None     # power-on hours
 
     @property
     def percent(self) -> float:
@@ -105,7 +112,11 @@ def scan(include_system: bool = False) -> list[Drive]:
         else:
             kind = "other"
         label = b.get("label") or ("Root" if mnt == "/" else os.path.basename(mnt) or mnt)
-        drives.append(Drive(dev, mnt, fs, label, total, used, free, kind, is_snap))
+        disk = (b.get("pkname") or os.path.basename(dev)) if dev.startswith("/dev/") else None
+        info = hw.disk_info(disk) if kind != "network" else {}
+        drives.append(Drive(dev, mnt, fs, label, total, used, free, kind, is_snap, disk,
+                            info.get("model"), info.get("temp"), info.get("health"),
+                            info.get("hours")))
     drives.sort(key=lambda d: (d.mountpoint != "/", d.mountpoint))
     return drives
 
